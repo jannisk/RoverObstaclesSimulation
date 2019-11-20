@@ -7,15 +7,6 @@
 #include "Resource.h"
 #include "FieldArea.h"
 
-template <class T> void SafeRelease(T **ppT)
-{
-    if (*ppT)
-    {
-        (*ppT)->Release();
-        *ppT = NULL;
-    }
-}
-
 
 MainWindow::MainWindow():BaseWindow()
 {
@@ -29,6 +20,8 @@ MainWindow::MainWindow():BaseWindow()
 	pRenderTarget = NULL;
 	pBrush = NULL;
 }
+
+
 LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch (uMsg)

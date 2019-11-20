@@ -48,7 +48,7 @@ private:
 	ID2D1HwndRenderTarget *m_RenderTarget;
 	ID2D1Bitmap *m_vehicle;
 	ID2D1SolidColorBrush *m_Brush;
-
+	IWICImagingFactory  *m_WicFactory;
 	HWND m_texthwnd;
 	RECT m_rect;
 	Coordinates Curr, Next, Prev;

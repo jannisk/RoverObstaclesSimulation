@@ -2,12 +2,17 @@
 #include "FieldArea.h"
 #include <d2d1.h>
 #include <dwrite.h>
+#include "Vehicle.h"
+
+#pragma comment(lib, "Windowscodecs.lib")
 
 
 D2D1::ColorF::Enum colors[] = { D2D1::ColorF::Yellow, D2D1::ColorF::Salmon, D2D1::ColorF::LimeGreen };
 
 FieldArea::FieldArea(void)
 {
+	// Initialize COM
+	CoInitialize(nullptr);
 	VEHICLE_WIDTH_IN_CMS = 32;
 	LIDAR_RANGE_IN_CMS = 180;
 	m_factory = NULL;
@@ -17,6 +22,8 @@ FieldArea::FieldArea(void)
 
 FieldArea::~FieldArea(void)
 {
+	// Uninitialize COM
+	CoUninitialize();
 }
 
 
@@ -86,6 +93,11 @@ void FieldArea::DrawScanPoints()
 		// Retrieve the size of the render target.
 		const D2D1_SIZE_F renderTargetSize = m_RenderTarget->GetSize();
 
+		// Retrieve the size of the bitmap.
+		D2D1_SIZE_F size = m_vehicle->GetSize();
+
+        D2D1_POINT_2F upperLeftCorner = D2D1::Point2F(100.f, 10.f);
+
 		int iCounter = 1;
 		for (auto i = ellipses.begin(); i != ellipses.end(); ++i)
 		{
@@ -93,12 +105,27 @@ void FieldArea::DrawScanPoints()
 			(*i)->Draw(m_RenderTarget, m_Brush);
 			WCHAR info[20];
 			_itow_s(iCounter, info, 10);	
-			m_RenderTarget->DrawText(info, wcslen(info), m_textFormat, D2D1::RectF((*i)->ellipse.point.x, (*i)->ellipse.point.y, (*i)->ellipse.point.x + 9, (*i)->ellipse.point.y-40), m_Brush);
+			//m_RenderTarget->DrawText(info, wcslen(info), m_textFormat, D2D1::RectF((*i)->ellipse.point.x, (*i)->ellipse.point.y, (*i)->ellipse.point.x + 9, (*i)->ellipse.point.y-40), m_Brush);
+			
+			  // Draw a bitmap.
+			m_RenderTarget->DrawBitmap(
+			m_vehicle,
+            D2D1::RectF(
+                (*i)->ellipse.point.x,
+                (*i)->ellipse.point.y,
+                 (*i)->ellipse.point.x + size.width,
+                (*i)->ellipse.point.y + size.height)
+            );
+
 			iCounter++;
 		}
+
+		
+
+      
+
 		m_RenderTarget->EndDraw();
 		EndPaint(m_texthwnd, &ps);
-
 	}
 }
 
@@ -149,18 +176,17 @@ HRESULT FieldArea::CreateVehicle()
 		hr = LoadResourceBitmap(
 			m_RenderTarget,
 			m_WicFactory,
-			L"SampleImage",
-			L"Image",
-			200,
-			0,
+			L"IDB_CAR",
+			MAKEINTRESOURCE(RT_BITMAP),
+			20,
+			10,
 			&m_vehicle
 			);
-
-		RECT rc;
+		/*RECT rc;
 
 		GetClientRect(m_texthwnd, &rc);
 		D2D1_SIZE_U size = D2D1::SizeU(rc.right, rc.bottom);
-		m_RenderTarget->CreateBitmap(size,D2D1::BitmapProperties(), &m_vehicle);
+		m_RenderTarget->CreateBitmap(size,D2D1::BitmapProperties(), &m_vehicle);*/
 
 	}
 	if (SUCCEEDED(hr))
@@ -182,12 +208,15 @@ HRESULT FieldArea::CreateGraphicsResources()
 			D2D1::RenderTargetProperties(),
 			D2D1::HwndRenderTargetProperties(m_texthwnd, size),
 			&m_RenderTarget);
+		
+		m_WicFactory = CWICImagingFactory::GetInstance().GetFactory();
+
+		hr = CreateVehicle();
 
 		if (SUCCEEDED(hr))
 		{
 			const D2D1_COLOR_F color = D2D1::ColorF(255.0f, 1.0f, 0);
 			hr = m_RenderTarget->CreateSolidColorBrush(color, &m_Brush);
-			hr = CreateVehicle();
 		}
 	}
 	return hr;
@@ -208,7 +237,7 @@ HRESULT FieldArea::CreateDeviceIndependentResources()
 
 	if (m_textFormat != NULL) return hr;
 	// Create a Direct2D factory.
-	//hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &m_writeFactory);
+	//hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &m_WicFactory);
 
 	if (SUCCEEDED(hr))
 	{
@@ -220,6 +249,8 @@ HRESULT FieldArea::CreateDeviceIndependentResources()
 			reinterpret_cast<IUnknown **>(&m_writeFactory)
 			);
 	}
+
+
 	if (SUCCEEDED(hr))
 	{
 		// Create a DirectWrite text format object.
@@ -255,104 +286,168 @@ HRESULT FieldArea::LoadResourceBitmap(
 	ID2D1Bitmap **ppBitmap
 	)
 {
-	IWICBitmapDecoder *pDecoder = NULL;
-	IWICBitmapFrameDecode *pSource = NULL;
-	IWICStream *pStream = NULL;
-	IWICFormatConverter *pConverter = NULL;
-	IWICBitmapScaler *pScaler = NULL;
+	int errmsg;
 
-	HRSRC imageResHandle = NULL;
-	HGLOBAL imageResDataHandle = NULL;
-	void *pImageFile = NULL;
-	DWORD imageFileSize = 0;
+	HBITMAP hbitmap;
+	WICBitmapAlphaChannelOption wicalpha;
+	IWICBitmap *pwicbitmap;
+	IWICFormatConverter *pConverter;
 
-	// Locate the resource.
-	imageResHandle = FindResourceW(HINST_THISCOMPONENT, resourceName, resourceType);
-	HRESULT hr = imageResHandle ? S_OK : E_FAIL;
-	if (SUCCEEDED(hr))
-	{
-		// Load the resource.
-		imageResDataHandle = LoadResource(HINST_THISCOMPONENT, imageResHandle);
-		hr = imageResDataHandle ? S_OK : E_FAIL;
-	}
-	if (SUCCEEDED(hr))
-	{
-		// Lock it to get a system memory pointer.
-		pImageFile = LockResource(imageResDataHandle);
-		hr = pImageFile ? S_OK : E_FAIL;
-	}
-	if (SUCCEEDED(hr))
-	{
-		// Calculate the size.
-		imageFileSize = SizeofResource(HINST_THISCOMPONENT, imageResHandle);
-		hr = imageFileSize ? S_OK : E_FAIL;
+	ID2D1Factory *d2dfactory;
+	D2D1_BITMAP_PROPERTIES d2dbp;
+	D2D1_PIXEL_FORMAT d2dpf;
+	FLOAT dpiX;
+	FLOAT dpiY;
 
-	}
-	if (SUCCEEDED(hr))
+	hbitmap = LoadBitmap( GetModuleHandle(NULL),resourceName );
+	wicalpha = WICBitmapUseAlpha;
+
+	errmsg = m_WicFactory->CreateBitmapFromHBITMAP( hbitmap, NULL, wicalpha, &pwicbitmap );
+	if( !SUCCEEDED(errmsg) )
 	{
-		// Create a WIC stream to map onto the memory.
-		hr = pIWICFactory->CreateStream(&pStream);
-	}
-	if (SUCCEEDED(hr))
-	{
-		// Initialize the stream with the memory pointer and size.
-		hr = pStream->InitializeFromMemory(
-			reinterpret_cast<BYTE*>(pImageFile),
-			imageFileSize
-			);
+		printf("LoadBitmapFromResource::CreateBitmapFromHBITMAP() error: %x\r\n", errmsg );
+		return errmsg;
 	}
 
-	if (SUCCEEDED(hr))
+	errmsg = m_WicFactory->CreateFormatConverter( &pConverter );
+	if( !SUCCEEDED(errmsg) )
 	{
-		// Create a decoder for the stream.
-		hr = pIWICFactory->CreateDecoderFromStream(
-			pStream,
-			NULL,
-			WICDecodeMetadataCacheOnLoad,
-			&pDecoder
-			);
-	}
-	if (SUCCEEDED(hr))
-	{
-		// Create the initial frame.
-		hr = pDecoder->GetFrame(0, &pSource);
-	}
-	if (SUCCEEDED(hr))
-	{
-		// Convert the image format to 32bppPBGRA
-		// (DXGI_FORMAT_B8G8R8A8_UNORM + D2D1_ALPHA_MODE_PREMULTIPLIED).
-		hr = pIWICFactory->CreateFormatConverter(&pConverter);
+		printf("LoadBitmapFromResource::CreateFormatConverter() error: %x\r\n", errmsg );
+		return errmsg;
 	}
 
-	if (SUCCEEDED(hr))
-	{           
-		hr = pConverter->Initialize(
-			pSource,
-			GUID_WICPixelFormat32bppPBGRA,
-			WICBitmapDitherTypeNone,
-			NULL,
-			0.f,
-			WICBitmapPaletteTypeMedianCut
-			);
-	}
-	if (SUCCEEDED(hr))
+	d2dpf.format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	d2dpf.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+	pRenderTarget->GetFactory( &d2dfactory );
+	d2dfactory->GetDesktopDpi( &dpiX, &dpiY );
+	d2dbp.pixelFormat = d2dpf;
+	d2dbp.dpiX = dpiX;
+	d2dbp.dpiY = dpiY;
+
+	pConverter->Initialize( pwicbitmap, GUID_WICPixelFormat32bppPBGRA, WICBitmapDitherTypeNone, NULL, 0.0f, WICBitmapPaletteTypeMedianCut );
+	if( !SUCCEEDED(errmsg) )
 	{
-		//create a Direct2D bitmap from the WIC bitmap.
-		hr = pRenderTarget->CreateBitmapFromWicBitmap(
-			pConverter,
-			NULL,
-			ppBitmap
-			);
-
+		printf("LoadBitmapFromResource::Initialize() error: %x\r\n", errmsg );
+		return errmsg;
 	}
 
-	SafeRelease(&pDecoder);
-	SafeRelease(&pSource);
-	SafeRelease(&pStream);
-	SafeRelease(&pConverter);
-	SafeRelease(&pScaler);
+	errmsg = pRenderTarget->CreateBitmapFromWicBitmap( pConverter, &d2dbp, ppBitmap );
+	if( !SUCCEEDED(errmsg) )
+	{
+		printf("LoadBitmapFromResource::CreateBitmapFromWicBitmap() error: %x\r\n", errmsg );
+		return errmsg;
+	}
 
-	return hr;
+	pConverter->Release();
+	pwicbitmap->Release();
+	DeleteObject( hbitmap );
+	
+	return 0;
+
+	//IWICBitmapDecoder *pDecoder = NULL;
+	//IWICBitmapFrameDecode *pSource = NULL;
+	//IWICStream *pStream = NULL;
+	//IWICFormatConverter *pConverter = NULL;
+	//IWICBitmapScaler *pScaler = NULL;
+
+	//HRSRC imageResHandle = NULL;
+	//HGLOBAL imageResDataHandle = NULL;
+	//void *pImageFile = NULL;
+	//DWORD imageFileSize = 0;
+
+	//// Locate the resource.
+	//imageResHandle = FindResourceW(HINST_THISCOMPONENT, resourceName, resourceType);
+	//HRESULT hr = imageResHandle ? S_OK : E_FAIL;
+	//if (SUCCEEDED(hr))
+	//{
+	//	// Load the resource.
+	//	imageResDataHandle = LoadResource(HINST_THISCOMPONENT, imageResHandle);
+	//	hr = imageResDataHandle ? S_OK : E_FAIL;
+	//}
+	//if (SUCCEEDED(hr))
+	//{
+	//	// Lock it to get a system memory pointer.
+	//	pImageFile = LockResource(imageResDataHandle);
+	//	hr = pImageFile ? S_OK : E_FAIL;
+	//}
+	//if (SUCCEEDED(hr))
+	//{
+	//	// Calculate the size.
+	//	imageFileSize = SizeofResource(HINST_THISCOMPONENT, imageResHandle);
+	//	hr = imageFileSize ? S_OK : E_FAIL;
+
+	//}
+
+	//if (SUCCEEDED(hr))
+	//{
+	//	// Create a WIC stream to map onto the memory.
+	//	hr = pIWICFactory->CreateStream(&pStream);
+	//}
+	//if (SUCCEEDED(hr))
+	//{
+	//	// Initialize the stream with the memory pointer and size.
+	//	hr = pStream->InitializeFromMemory(
+	//		reinterpret_cast<BYTE*>(pImageFile),
+	//		imageFileSize
+	//		);
+	//}
+
+	//if (SUCCEEDED(hr))
+	//{
+	//	// Create a decoder for the stream.
+	//	hr = pIWICFactory->CreateDecoderFromStream(
+	//		pStream,
+	//		NULL,
+	//		WICDecodeMetadataCacheOnLoad,
+	//		&pDecoder
+	//		);
+
+	// /*  hr = pIWICFactory->CreateDecoderFromFilename(
+	//		resourceName, NULL, GENERIC_READ, WICDecodeMetadataCacheOnDemand, &pDecoder);*/
+
+	//}
+
+	//if (SUCCEEDED(hr))
+	//{
+	//	// Create the initial frame.
+	//	hr = pDecoder->GetFrame(0, &pSource);
+	//}
+	//if (SUCCEEDED(hr))
+	//{
+	//	// Convert the image format to 32bppPBGRA
+	//	// (DXGI_FORMAT_B8G8R8A8_UNORM + D2D1_ALPHA_MODE_PREMULTIPLIED).
+	//	hr = pIWICFactory->CreateFormatConverter(&pConverter);
+	//}
+
+	//if (SUCCEEDED(hr))
+	//{           
+	//	hr = pConverter->Initialize(
+	//		pSource,
+	//		GUID_WICPixelFormat32bppPBGRA,
+	//		WICBitmapDitherTypeNone,
+	//		NULL,
+	//		0.f,
+	//		WICBitmapPaletteTypeMedianCut
+	//		);
+	//}
+	//if (SUCCEEDED(hr))
+	//{
+	//	//create a Direct2D bitmap from the WIC bitmap.
+	//	hr = pRenderTarget->CreateBitmapFromWicBitmap(
+	//		pConverter,
+	//		NULL,
+	//		ppBitmap
+	//		);
+
+	//}
+
+	//SafeRelease(&pDecoder);
+	//SafeRelease(&pSource);
+	//SafeRelease(&pStream);
+	//SafeRelease(&pConverter);
+	//SafeRelease(&pScaler);
+
+	//return hr;
 }
 
 
