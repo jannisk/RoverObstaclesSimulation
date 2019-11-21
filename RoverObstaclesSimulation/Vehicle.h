@@ -30,5 +30,5 @@ protected:
  
 private:
     CWICImagingFactory();   // Private because singleton
-    static std::shared_ptr<CWICImagingFactory> m_pInstance;
+	static std::shared_ptr<CWICImagingFactory> m_pInstance;
 };

@@ -22,8 +22,6 @@ FieldArea::FieldArea(void)
 
 FieldArea::~FieldArea(void)
 {
-	// Uninitialize COM
-	CoUninitialize();
 }
 
 
@@ -88,7 +86,7 @@ void FieldArea::DrawScanPoints()
 		m_RenderTarget->BeginDraw();
 		//m_RenderTarget->SetTransform(D2D1::Matrix3x2F::Identity());
 
-		m_RenderTarget->Clear( D2D1::ColorF(D2D1::ColorF::Coral));
+		//m_RenderTarget->Clear( D2D1::ColorF(D2D1::ColorF::Coral));
 
 		// Retrieve the size of the render target.
 		const D2D1_SIZE_F renderTargetSize = m_RenderTarget->GetSize();
