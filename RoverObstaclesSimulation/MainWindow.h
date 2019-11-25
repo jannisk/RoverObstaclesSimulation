@@ -14,14 +14,21 @@ class MainWindow : public BaseWindow<MainWindow>
 	ID2D1Factory *pFactory;
     ID2D1HwndRenderTarget *pRenderTarget;
     ID2D1SolidColorBrush *pBrush;
+	D2D1_POINT_2F m_ptMouse;
+	D2D1_ELLIPSE  m_ellipse;
 
 
 	HPEN m_pen;
 	HBRUSH m_hPurpleBrush;
 	FieldArea *m_fieldArea;
+	int m_globalCommandId;
+
 	void OnPaint(HDC, LPPAINTSTRUCT);
 	void OnCreate(HWND);
-
+	void OnLButtonDown(int pixelX, int pixelY, DWORD flags);
+	void OnLButtonUp();;
+	void OnMouseMove(int pixelX, int pixelY, DWORD flags);;
+	
 public:
 	MainWindow();
 	~MainWindow() {}

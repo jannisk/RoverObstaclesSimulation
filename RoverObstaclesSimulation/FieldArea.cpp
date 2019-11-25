@@ -9,7 +9,7 @@
 
 D2D1::ColorF::Enum colors[] = { D2D1::ColorF::Yellow, D2D1::ColorF::Salmon, D2D1::ColorF::LimeGreen };
 
-FieldArea::FieldArea(void)
+FieldArea::FieldArea(void): m_ptMouse(D2D1::Point2F()), m_ellipse(D2D1::Ellipse(D2D1::Point2F(), 0, 0))
 {
 	// Initialize COM
 	CoInitialize(nullptr);
@@ -34,42 +34,44 @@ FieldArea::FieldArea(HWND mainWindow, ID2D1Factory *factory)
 
 void FieldArea::Initialize()
 {
-	FieldWidth = (m_rect.right - m_rect.left) ;
-	FieldLength =  abs(m_rect.top - m_rect.bottom);
+	FieldWidth = (m_viewRect.right - m_viewRect.left) ;
+	FieldLength =  abs(m_viewRect.top - m_viewRect.bottom);
 	NrOfXScanPoints = round(FieldWidth / VEHICLE_WIDTH_IN_CMS) + 1;  
 	NrOfYScanPoints = round(FieldLength / (LIDAR_RANGE_IN_CMS / 2)) + 1;  
 	XScanRange = FieldWidth / (NrOfXScanPoints-1);
 	YScanRange = FieldLength / (NrOfYScanPoints-1);
 	TotalNrOfScanPoints = NrOfXScanPoints * NrOfYScanPoints;
 	int temp = NrOfYScanPoints;
-	int ScanPtNumber;
+	int scanPtNumber;
 	int iCounter = 0;
 	int NumOfReachPoints ;
-	for (int iCountX = 1; iCountX < NrOfXScanPoints; iCountX++)
+	for (int iCountX = 0; iCountX < NrOfXScanPoints; iCountX++)
 	{
 		for (int iCountY=0; iCountY < NrOfYScanPoints; iCountY++)
 		{
-			int Xcord = (iCountX  * XScanRange);
+			int Xcord = iCountX  * XScanRange + COORD_OFFSET; 
 			//Start to generate points with an offset downward the Y axis
-			int Ycord = iCountY == 0 ? ( iCountY +1) * YScanRange : iCountY * YScanRange;
+			int Ycord = iCountY * YScanRange + COORD_OFFSET;
 
 			if (iCountX % 2 != 0)
-				ScanPtNumber = iCounter + NrOfYScanPoints - (iCountY*2) - 1;
+				scanPtNumber = iCounter + NrOfYScanPoints - (iCountY*2) - 1;
 			else
-				ScanPtNumber = iCounter;
-			ScanPtArr [ScanPtNumber].ScanPtNum = ScanPtNumber;
-			ScanPtArr [ScanPtNumber].Source.X = Xcord; 
-			ScanPtArr [ScanPtNumber].Source.Y = Ycord;
-			InsertEllipse(Xcord, Ycord);
+				scanPtNumber = iCounter;
+			m_ScanPtArr [scanPtNumber].ScanPtNum = scanPtNumber;
+			m_ScanPtArr [scanPtNumber].Source.X = Xcord; 
+			m_ScanPtArr [scanPtNumber].Source.Y = Ycord;
+			
+			InsertEllipse(Xcord, Ycord, scanPtNumber);
+			
 			iCounter++;
-			ScanPtArr[ScanPtNumber].NumOfReachPts = 0;
+			m_ScanPtArr[scanPtNumber].NumOfReachPts = 0;
 		}
 	}
 	TotalNrOfScanPoints = iCounter;
 	for (int icount = 0; icount < TotalNrOfScanPoints; icount++)
 	{
-		ScanPtArr[icount].Goal.X = ScanPtArr[icount+1].Source.X;
-		ScanPtArr[icount].Goal.Y = ScanPtArr[icount+1].Source.Y;
+		m_ScanPtArr[icount].Goal.X = m_ScanPtArr[icount+1].Source.X;
+		m_ScanPtArr[icount].Goal.Y = m_ScanPtArr[icount+1].Source.Y;
 	}
 }
 
@@ -82,11 +84,10 @@ void FieldArea::DrawScanPoints()
 	if (SUCCEEDED(hr))
 	{
 		PAINTSTRUCT ps;
-		BeginPaint(m_texthwnd, &ps);
+		//BeginPaint(m_fieldhwnd, &ps);
 		m_RenderTarget->BeginDraw();
 		//m_RenderTarget->SetTransform(D2D1::Matrix3x2F::Identity());
-
-		//m_RenderTarget->Clear( D2D1::ColorF(D2D1::ColorF::Coral));
+		m_RenderTarget->Clear( D2D1::ColorF(D2D1::ColorF::OliveDrab));
 
 		// Retrieve the size of the render target.
 		const D2D1_SIZE_F renderTargetSize = m_RenderTarget->GetSize();
@@ -95,39 +96,44 @@ void FieldArea::DrawScanPoints()
 		D2D1_SIZE_F size = m_vehicle->GetSize();
 
         D2D1_POINT_2F upperLeftCorner = D2D1::Point2F(100.f, 10.f);
+		// Draw a bitmap.
+		m_RenderTarget->DrawBitmap(
+			m_vehicle,
+			D2D1::RectF(
+			upperLeftCorner.x,
+			upperLeftCorner.y,
+			upperLeftCorner.x + size.width,
+			upperLeftCorner.y + size.height)
+			);
 
+		//count nr of points
 		int iCounter = 1;
 		for (auto i = ellipses.begin(); i != ellipses.end(); ++i)
 		{
 			D2D1_ELLIPSE  ellipse = (*i)->ellipse;
 			(*i)->Draw(m_RenderTarget, m_Brush);
 			WCHAR info[20];
-			_itow_s(iCounter, info, 10);	
-			//m_RenderTarget->DrawText(info, wcslen(info), m_textFormat, D2D1::RectF((*i)->ellipse.point.x, (*i)->ellipse.point.y, (*i)->ellipse.point.x + 9, (*i)->ellipse.point.y-40), m_Brush);
+			_itow_s((*i)->ScanPtNumber, info, 10);	
+			m_RenderTarget->DrawText(info, wcslen(info), m_textFormat, D2D1::RectF((*i)->ellipse.point.x, (*i)->ellipse.point.y, 
+				(*i)->ellipse.point.x + 9, (*i)->ellipse.point.y-40), m_Brush);
 			
-			  // Draw a bitmap.
-			m_RenderTarget->DrawBitmap(
-			m_vehicle,
-            D2D1::RectF(
-                (*i)->ellipse.point.x,
-                (*i)->ellipse.point.y,
-                 (*i)->ellipse.point.x + size.width,
-                (*i)->ellipse.point.y + size.height)
-            );
-
 			iCounter++;
 		}
-
-		
-
       
+		D2D1_SIZE_F aSize;
+		aSize.width = (m_rect.right - m_rect.left) - 50;
+		aSize.height = (m_rect.bottom - m_rect.top) - 50;
 
+		m_RenderTarget->DrawRectangle(D2D1::RectF(m_rect.left + 50, m_rect.top + 50, m_rect.left + aSize.width, m_rect.top + aSize.height ), m_Brush);
 		m_RenderTarget->EndDraw();
-		EndPaint(m_texthwnd, &ps);
+		
+		m_RenderTarget->DrawEllipse(m_ellipse, m_Brush, 2);
+
+		//EndPaint(m_fieldhwnd, &ps);
 	}
 }
 
-HRESULT FieldArea::InsertEllipse(float x, float y)
+HRESULT FieldArea::InsertEllipse(float x, float y, int scanNr)
 {
 	try
 	{
@@ -136,6 +142,7 @@ HRESULT FieldArea::InsertEllipse(float x, float y)
 			shared_ptr<ScanPtEllipse>(new ScanPtEllipse()));
 
 		Selection()->ellipse.point = D2D1::Point2F(x, y);
+		Selection()->ScanPtNumber = scanNr;
 		Selection()->ellipse.radiusX = Selection()->ellipse.radiusY = 2.0f; 
 		Selection()->color = D2D1::ColorF( colors[0] );
 	}
@@ -150,18 +157,27 @@ void FieldArea::Create(HWND hParent)
 { 
 	RECT rect;
 	int width, height;
-	if(GetWindowRect(hParent, &rect))
-	{
-		width = rect.right - rect.left;
-		height = rect.bottom - rect.top;
-	}
-	m_texthwnd = CreateWindowEx(0, __T("STATIC"), __T("RAM: 99%"),
-		WS_CHILD | WS_VISIBLE | SS_SUNKEN,
-		10, 10, width-50, height - 80, hParent, 0, 0, 0);
-	GetClientRect(m_texthwnd, &m_rect);
+	m_hParent = hParent;
+	////if(GetWindowRect(hParent, &rect))
+	//{
+	//	width = rect.right - rect.left;
+	//	height = rect.bottom - rect.top;
+	//}
+	//m_fieldhwnd = CreateWindowEx(0, __T("STATIC"), __T("RAM: 99%"),
+	//	WS_CHILD | WS_VISIBLE | SS_SUNKEN,
+	//	10, 10, width-50, height - 80, hParent, 0, 0, 0);
+	//GetClientRect(m_fieldhwnd, &m_rect);
+
+	D2D1_SIZE_F size;
+	size.width = (m_rect.right - m_rect.left) - COORD_OFFSET;
+	size.height = (m_rect.bottom - m_rect.top) - COORD_OFFSET;
+
+	m_viewRect.left = m_rect.left + COORD_OFFSET;
+	m_viewRect.top = m_rect.top + COORD_OFFSET;
+	m_viewRect.right = m_rect.left + size.width ;
+	m_viewRect.bottom =  m_rect.top + size.height;
+
 	Initialize();
-	/* HDC hdc = GetDC(texthwnd);
-	SetBkColor(hdc, RGB(222,231,249));*/
 }
 
 HRESULT FieldArea::CreateVehicle()
@@ -199,12 +215,12 @@ HRESULT FieldArea::CreateGraphicsResources()
 	if (m_RenderTarget == NULL)
 	{
 		RECT rc;
-		GetClientRect(m_texthwnd, &rc);
+		GetClientRect(m_hParent, &rc);
 		D2D1_SIZE_U size = D2D1::SizeU(rc.right, rc.bottom);
 
 		hr = m_factory->CreateHwndRenderTarget(
 			D2D1::RenderTargetProperties(),
-			D2D1::HwndRenderTargetProperties(m_texthwnd, size),
+			D2D1::HwndRenderTargetProperties(m_hParent, size),
 			&m_RenderTarget);
 		
 		m_WicFactory = CWICImagingFactory::GetInstance().GetFactory();
@@ -248,7 +264,6 @@ HRESULT FieldArea::CreateDeviceIndependentResources()
 			);
 	}
 
-
 	if (SUCCEEDED(hr))
 	{
 		// Create a DirectWrite text format object.
@@ -268,7 +283,8 @@ HRESULT FieldArea::CreateDeviceIndependentResources()
 		// Center the text horizontally and vertically.
 		m_textFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
 		m_textFormat->SetReadingDirection(DWRITE_READING_DIRECTION_RIGHT_TO_LEFT);
-		m_textFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+		m_textFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
+		m_textFormat->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
 	}
 	return hr;
 }
@@ -298,7 +314,7 @@ HRESULT FieldArea::LoadResourceBitmap(
 	FLOAT dpiY;
 
 	hbitmap = LoadBitmap( GetModuleHandle(NULL),resourceName );
-	wicalpha = WICBitmapUseAlpha;
+	wicalpha = WICBitmapIgnoreAlpha; //no alpha channel in bitmaps
 
 	errmsg = m_WicFactory->CreateBitmapFromHBITMAP( hbitmap, NULL, wicalpha, &pwicbitmap );
 	if( !SUCCEEDED(errmsg) )
@@ -322,6 +338,7 @@ HRESULT FieldArea::LoadResourceBitmap(
 	d2dbp.dpiX = dpiX;
 	d2dbp.dpiY = dpiY;
 
+	//not needed and used keep it for future cases
 	pConverter->Initialize( pwicbitmap, GUID_WICPixelFormat32bppPBGRA, WICBitmapDitherTypeNone, NULL, 0.0f, WICBitmapPaletteTypeMedianCut );
 	if( !SUCCEEDED(errmsg) )
 	{
@@ -329,7 +346,7 @@ HRESULT FieldArea::LoadResourceBitmap(
 		return errmsg;
 	}
 
-	errmsg = pRenderTarget->CreateBitmapFromWicBitmap( pConverter, &d2dbp, ppBitmap );
+	errmsg = pRenderTarget->CreateBitmapFromWicBitmap( pwicbitmap, ppBitmap );
 	if( !SUCCEEDED(errmsg) )
 	{
 		printf("LoadBitmapFromResource::CreateBitmapFromWicBitmap() error: %x\r\n", errmsg );
@@ -341,111 +358,36 @@ HRESULT FieldArea::LoadResourceBitmap(
 	DeleteObject( hbitmap );
 	
 	return 0;
+}
 
-	//IWICBitmapDecoder *pDecoder = NULL;
-	//IWICBitmapFrameDecode *pSource = NULL;
-	//IWICStream *pStream = NULL;
-	//IWICFormatConverter *pConverter = NULL;
-	//IWICBitmapScaler *pScaler = NULL;
+void FieldArea::OnLButtonDown(int pixelX, int pixelY, DWORD flags)
+{
+	SetCapture(m_hParent);
+	m_ellipse.point = m_ptMouse = DPIScale::PixelsToDips(pixelX, pixelY);
+	m_ellipse.radiusX = m_ellipse.radiusY = 1.0f; 
+	InvalidateRect(m_hParent, NULL, FALSE);
+}
 
-	//HRSRC imageResHandle = NULL;
-	//HGLOBAL imageResDataHandle = NULL;
-	//void *pImageFile = NULL;
-	//DWORD imageFileSize = 0;
+void FieldArea::OnMouseMove(int pixelX, int pixelY, DWORD flags)
+{
+	if (flags & MK_LBUTTON) 
+	{ 
+		const D2D1_POINT_2F dips = DPIScale::PixelsToDips(pixelX, pixelY);
 
-	//// Locate the resource.
-	//imageResHandle = FindResourceW(HINST_THISCOMPONENT, resourceName, resourceType);
-	//HRESULT hr = imageResHandle ? S_OK : E_FAIL;
-	//if (SUCCEEDED(hr))
-	//{
-	//	// Load the resource.
-	//	imageResDataHandle = LoadResource(HINST_THISCOMPONENT, imageResHandle);
-	//	hr = imageResDataHandle ? S_OK : E_FAIL;
-	//}
-	//if (SUCCEEDED(hr))
-	//{
-	//	// Lock it to get a system memory pointer.
-	//	pImageFile = LockResource(imageResDataHandle);
-	//	hr = pImageFile ? S_OK : E_FAIL;
-	//}
-	//if (SUCCEEDED(hr))
-	//{
-	//	// Calculate the size.
-	//	imageFileSize = SizeofResource(HINST_THISCOMPONENT, imageResHandle);
-	//	hr = imageFileSize ? S_OK : E_FAIL;
+		const float width = (dips.x - m_ptMouse.x) / 2;
+		const float height = (dips.y - m_ptMouse.y) / 2;
+		const float x1 = m_ptMouse.x + width;
+		const float y1 = m_ptMouse.y + height;
 
-	//}
+		m_ellipse = D2D1::Ellipse(D2D1::Point2F(x1, y1), width, height);
 
-	//if (SUCCEEDED(hr))
-	//{
-	//	// Create a WIC stream to map onto the memory.
-	//	hr = pIWICFactory->CreateStream(&pStream);
-	//}
-	//if (SUCCEEDED(hr))
-	//{
-	//	// Initialize the stream with the memory pointer and size.
-	//	hr = pStream->InitializeFromMemory(
-	//		reinterpret_cast<BYTE*>(pImageFile),
-	//		imageFileSize
-	//		);
-	//}
+		InvalidateRect(m_hParent, NULL, FALSE);
+	}
+}
 
-	//if (SUCCEEDED(hr))
-	//{
-	//	// Create a decoder for the stream.
-	//	hr = pIWICFactory->CreateDecoderFromStream(
-	//		pStream,
-	//		NULL,
-	//		WICDecodeMetadataCacheOnLoad,
-	//		&pDecoder
-	//		);
-
-	// /*  hr = pIWICFactory->CreateDecoderFromFilename(
-	//		resourceName, NULL, GENERIC_READ, WICDecodeMetadataCacheOnDemand, &pDecoder);*/
-
-	//}
-
-	//if (SUCCEEDED(hr))
-	//{
-	//	// Create the initial frame.
-	//	hr = pDecoder->GetFrame(0, &pSource);
-	//}
-	//if (SUCCEEDED(hr))
-	//{
-	//	// Convert the image format to 32bppPBGRA
-	//	// (DXGI_FORMAT_B8G8R8A8_UNORM + D2D1_ALPHA_MODE_PREMULTIPLIED).
-	//	hr = pIWICFactory->CreateFormatConverter(&pConverter);
-	//}
-
-	//if (SUCCEEDED(hr))
-	//{           
-	//	hr = pConverter->Initialize(
-	//		pSource,
-	//		GUID_WICPixelFormat32bppPBGRA,
-	//		WICBitmapDitherTypeNone,
-	//		NULL,
-	//		0.f,
-	//		WICBitmapPaletteTypeMedianCut
-	//		);
-	//}
-	//if (SUCCEEDED(hr))
-	//{
-	//	//create a Direct2D bitmap from the WIC bitmap.
-	//	hr = pRenderTarget->CreateBitmapFromWicBitmap(
-	//		pConverter,
-	//		NULL,
-	//		ppBitmap
-	//		);
-
-	//}
-
-	//SafeRelease(&pDecoder);
-	//SafeRelease(&pSource);
-	//SafeRelease(&pStream);
-	//SafeRelease(&pConverter);
-	//SafeRelease(&pScaler);
-
-	//return hr;
+void FieldArea::OnLButtonUp()
+{
+	ReleaseCapture();
 }
 
 

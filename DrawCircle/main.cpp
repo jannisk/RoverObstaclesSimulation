@@ -53,8 +53,10 @@ class MainWindow : public BaseWindow<MainWindow>
     void    OnPaint();
     void    Resize();
     void    OnLButtonDown(int pixelX, int pixelY, DWORD flags);
-    void    OnLButtonUp();
-    void    OnMouseMove(int pixelX, int pixelY, DWORD flags);
+	
+	void    OnLButtonUp();
+	
+	void    OnMouseMove(int pixelX, int pixelY, DWORD flags);
 
 public:
 
@@ -115,7 +117,7 @@ void MainWindow::OnPaint()
         pRenderTarget->BeginDraw();
 
         pRenderTarget->Clear( D2D1::ColorF(D2D1::ColorF::SkyBlue) );
-        pRenderTarget->FillEllipse(ellipse, pBrush);
+        pRenderTarget->DrawEllipse(ellipse, pBrush, 2);
 
         hr = pRenderTarget->EndDraw();
         if (FAILED(hr) || hr == D2DERR_RECREATE_TARGET)
@@ -149,6 +151,7 @@ void MainWindow::OnLButtonDown(int pixelX, int pixelY, DWORD flags)
     InvalidateRect(m_hwnd, NULL, FALSE);
 }
 
+
 void MainWindow::OnMouseMove(int pixelX, int pixelY, DWORD flags)
 {
     if (flags & MK_LBUTTON) 
@@ -166,10 +169,12 @@ void MainWindow::OnMouseMove(int pixelX, int pixelY, DWORD flags)
     }
 }
 
+
 void MainWindow::OnLButtonUp()
 {
     ReleaseCapture(); 
 }
+
 
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)

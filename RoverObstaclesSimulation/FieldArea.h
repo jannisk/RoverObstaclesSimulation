@@ -11,6 +11,7 @@ struct ScanPtEllipse
 
 	D2D1_ELLIPSE    ellipse;
 	D2D1_COLOR_F    color;
+	int  ScanPtNumber;
 
 	void Draw(ID2D1RenderTarget *pRT, ID2D1SolidColorBrush *pBrush)
 	{
@@ -40,6 +41,7 @@ template <class T> void SafeRelease(T **ppT)
 
 class FieldArea
 {
+	static const int COORD_OFFSET= 50;
 
 private:
 	ID2D1Factory *m_factory;
@@ -49,7 +51,11 @@ private:
 	ID2D1Bitmap *m_vehicle;
 	ID2D1SolidColorBrush *m_Brush;
 	IWICImagingFactory  *m_WicFactory;
-	HWND m_texthwnd;
+	//HWND m_fieldhwnd;
+
+	D2D1_POINT_2F m_ptMouse;
+	D2D1_ELLIPSE  m_ellipse;
+
 	RECT m_rect;
 	Coordinates Curr, Next, Prev;
 
@@ -63,12 +69,12 @@ private:
 	int FieldWidth;
 	int FieldLength;
 	int TotalNrOfScanPoints;
-	ScanPt ScanPtArr[1000];
+	ScanPt m_ScanPtArr[1000];
 
 	list<shared_ptr<ScanPtEllipse>>   ellipses;
 	list<shared_ptr<ScanPtEllipse>>::iterator   selection;
-
-
+	RECT m_viewRect;
+	HWND m_hParent;
 	HRESULT CreateGraphicsResources();
 	HRESULT CreateDeviceIndependentResources();
 
@@ -112,7 +118,9 @@ public:
 	void Initialize();
 	void DrawScanPoints();
 
-	HRESULT InsertEllipse(float x, float y);
-
+	HRESULT InsertEllipse(float x, float y, int scanNr);
+	void OnLButtonDown(int pixelX, int pixelY, DWORD flags);
+	void OnMouseMove(int pixelX, int pixelY, DWORD flags);
+	void OnLButtonUp();
 };
 
