@@ -96,12 +96,13 @@ void MainWindow::OnPaint(HDC hdc,  LPPAINTSTRUCT ps)
 		BeginPaint(m_hwnd, &ps);
 		pRenderTarget->BeginDraw();
 		pRenderTarget->Clear( D2D1::ColorF(D2D1::ColorF::SkyBlue));
+		m_fieldArea->DrawScanPoints();
+
 		hr = pRenderTarget->EndDraw();
 		if (FAILED(hr) || hr == D2DERR_RECREATE_TARGET)
 		{
 			DiscardGraphicsResources();
 		}
-		m_fieldArea->DrawScanPoints();
 
 		EndPaint(m_hwnd, &ps);
 
@@ -115,8 +116,7 @@ void MainWindow::OnPaint(HDC hdc,  LPPAINTSTRUCT ps)
 
 void MainWindow::OnCreate(HWND hwnd)
 {
-	m_fieldArea = new FieldArea(m_hwnd, pFactory);
-	m_fieldArea->Create(m_hwnd);
+	
 }
 
 HRESULT MainWindow::CreateGraphicsResources()
@@ -138,6 +138,9 @@ HRESULT MainWindow::CreateGraphicsResources()
 			const D2D1_COLOR_F color = D2D1::ColorF(1.0f, 1.0f, 0);
 			hr = pRenderTarget->CreateSolidColorBrush(color, &pBrush);
 		}
+
+		m_fieldArea = new FieldArea(m_hwnd, pFactory, pRenderTarget);
+		m_fieldArea->Create(m_hwnd);
 	}
 	return hr;
 }

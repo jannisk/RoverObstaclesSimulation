@@ -111,7 +111,7 @@ private:
 public:
 	FieldArea(void);
 	FieldArea(RECT& aRect);
-	FieldArea(HWND window, ID2D1Factory *);
+	FieldArea(HWND window, ID2D1Factory *, ID2D1HwndRenderTarget * );
 	~FieldArea(void);
 	void Create(HWND hParent);
 

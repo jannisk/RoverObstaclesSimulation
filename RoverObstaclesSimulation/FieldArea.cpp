@@ -16,6 +16,7 @@ FieldArea::FieldArea(void): m_ptMouse(D2D1::Point2F()), m_ellipse(D2D1::Ellipse(
 	VEHICLE_WIDTH_IN_CMS = 32;
 	LIDAR_RANGE_IN_CMS = 180;
 	m_factory = NULL;
+	m_WicFactory = NULL;
 	m_textFormat = NULL;
 }
 
@@ -25,11 +26,11 @@ FieldArea::~FieldArea(void)
 }
 
 
-FieldArea::FieldArea(HWND mainWindow, ID2D1Factory *factory)
+FieldArea::FieldArea(HWND mainWindow, ID2D1Factory *factory,ID2D1HwndRenderTarget * pRenderTarget)
 {
 	*this = FieldArea::FieldArea();
 	m_factory= factory;
-	m_RenderTarget = NULL;
+	m_RenderTarget = pRenderTarget;
 }
 
 void FieldArea::Initialize()
@@ -85,7 +86,7 @@ void FieldArea::DrawScanPoints()
 	{
 		PAINTSTRUCT ps;
 		//BeginPaint(m_fieldhwnd, &ps);
-		m_RenderTarget->BeginDraw();
+		//m_RenderTarget->BeginDraw();
 		//m_RenderTarget->SetTransform(D2D1::Matrix3x2F::Identity());
 		m_RenderTarget->Clear( D2D1::ColorF(D2D1::ColorF::OliveDrab));
 
@@ -125,7 +126,7 @@ void FieldArea::DrawScanPoints()
 		aSize.height = (m_rect.bottom - m_rect.top) - 50;
 
 		m_RenderTarget->DrawRectangle(D2D1::RectF(m_rect.left + 50, m_rect.top + 50, m_rect.left + aSize.width, m_rect.top + aSize.height ), m_Brush);
-		m_RenderTarget->EndDraw();
+		//m_RenderTarget->EndDraw();
 		
 		m_RenderTarget->DrawEllipse(m_ellipse, m_Brush, 2);
 
@@ -158,15 +159,15 @@ void FieldArea::Create(HWND hParent)
 	RECT rect;
 	int width, height;
 	m_hParent = hParent;
-	////if(GetWindowRect(hParent, &rect))
-	//{
-	//	width = rect.right - rect.left;
-	//	height = rect.bottom - rect.top;
-	//}
+	/*if(GetWindowRect(hParent, &rect))
+	{
+		width = rect.right - rect.left;
+		height = rect.bottom - rect.top;
+	}*/
 	//m_fieldhwnd = CreateWindowEx(0, __T("STATIC"), __T("RAM: 99%"),
 	//	WS_CHILD | WS_VISIBLE | SS_SUNKEN,
 	//	10, 10, width-50, height - 80, hParent, 0, 0, 0);
-	//GetClientRect(m_fieldhwnd, &m_rect);
+	GetClientRect(m_hParent, &m_rect);
 
 	D2D1_SIZE_F size;
 	size.width = (m_rect.right - m_rect.left) - COORD_OFFSET;
@@ -212,16 +213,17 @@ HRESULT FieldArea::CreateVehicle()
 HRESULT FieldArea::CreateGraphicsResources()
 {
 	HRESULT hr = S_OK;
-	if (m_RenderTarget == NULL)
+	
+	if (m_WicFactory == 0)
 	{
 		RECT rc;
 		GetClientRect(m_hParent, &rc);
 		D2D1_SIZE_U size = D2D1::SizeU(rc.right, rc.bottom);
 
-		hr = m_factory->CreateHwndRenderTarget(
+		/*hr = m_factory->CreateHwndRenderTarget(
 			D2D1::RenderTargetProperties(),
 			D2D1::HwndRenderTargetProperties(m_hParent, size),
-			&m_RenderTarget);
+			&m_RenderTarget);*/
 		
 		m_WicFactory = CWICImagingFactory::GetInstance().GetFactory();
 
