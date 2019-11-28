@@ -68,6 +68,8 @@ public:
 
     PCWSTR  ClassName() const { return L"Circle Window Class"; }
     LRESULT HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+	
 };
 
 

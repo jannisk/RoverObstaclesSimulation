@@ -54,7 +54,11 @@ private:
 	//HWND m_fieldhwnd;
 
 	D2D1_POINT_2F m_ptMouse;
-	D2D1_ELLIPSE  m_ellipse;
+
+	//Ellipse tracked by mouse
+	D2D1_ELLIPSE  m_trackedEllipse;
+	list<shared_ptr<D2D1_ELLIPSE>>   m_obstacles;
+
 
 	RECT m_rect;
 	Coordinates Curr, Next, Prev;
@@ -122,5 +126,6 @@ public:
 	void OnLButtonDown(int pixelX, int pixelY, DWORD flags);
 	void OnMouseMove(int pixelX, int pixelY, DWORD flags);
 	void OnLButtonUp();
+	void InsertObstacle(D2D1_ELLIPSE m_trackedEllipse);
 };
 

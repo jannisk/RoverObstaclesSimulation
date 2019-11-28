@@ -38,6 +38,7 @@ public:
 	HRESULT CreateGraphicsResources();
 	void DiscardGraphicsResources();
 	void Resize();
+	void CheckUnchekMenuItem(BYTE bMenuItemID, HMENU hmenu);
 };
 
 

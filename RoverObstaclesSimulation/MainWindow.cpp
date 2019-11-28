@@ -27,6 +27,8 @@ MainWindow::MainWindow():BaseWindow(), 	m_ptMouse(D2D1::Point2F()), m_ellipse(D2
 
 LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+	static HMENU hmenu;         // handle to main menu  
+	
 	switch (uMsg)
 	{
 	case WM_DESTROY:
@@ -36,6 +38,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
 		Resize();
 		return 0;
 	case WM_CREATE:
+		hmenu = GetMenu(m_hwnd); 
 		if (FAILED(D2D1CreateFactory(
 			D2D1_FACTORY_TYPE_SINGLE_THREADED, &pFactory)))
 		{
@@ -49,7 +52,6 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
 			PAINTSTRUCT ps;
 			HDC hdc = BeginPaint(m_hwnd, &ps);
 			OnPaint(hdc, &ps);
-			//EndPaint(m_hwnd, &ps);
 		}
 		return 0;
 	case WM_COMMAND:
@@ -57,14 +59,13 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
 			switch (LOWORD(wParam))
 			{
 			case IDM_CREATE:
-				m_globalCommandId = IDM_CREATE;
+				CheckUnchekMenuItem((BYTE)LOWORD(wParam), hmenu);
 				break;
 			default:
 				break;
 
 			};
 		}
-		//OnLButtonDown(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), (DWORD)wParam);
 
 		return 0;
 	case WM_LBUTTONDOWN: 
@@ -86,6 +87,31 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
 }
 
 
+/// <summary>
+/// Checks Unchecks menu items
+/// </summary>
+/// <param name="bMenuItemID">The b menu item ID.</param>
+/// <param name="hmenu">The hmenu.</param>
+void MainWindow::CheckUnchekMenuItem(BYTE bMenuItemID, HMENU hmenu)
+{  
+	DWORD fdwMenu; 
+	switch (bMenuItemID) 
+	{ 
+		case IDM_CREATE:
+			fdwMenu = CheckMenuItem(hmenu, IDM_CREATE, MF_BYCOMMAND | MF_CHECKED); 
+			if(!(fdwMenu & MF_CHECKED))
+				m_globalCommandId = IDM_CREATE;
+			else
+			{
+				CheckMenuItem(hmenu, (UINT) bMenuItemID, 
+					MF_BYCOMMAND | MF_UNCHECKED); 
+				m_globalCommandId = 0;
+			}
+			return;
+	}
+}
+
+
 
 void MainWindow::OnPaint(HDC hdc,  LPPAINTSTRUCT ps)
 {
@@ -103,15 +129,9 @@ void MainWindow::OnPaint(HDC hdc,  LPPAINTSTRUCT ps)
 		{
 			DiscardGraphicsResources();
 		}
-
 		EndPaint(m_hwnd, &ps);
 
 	}
-
-	/*FillRect(hdc, &ps->rcPaint, m_hPurpleBrush); 
-	m_fieldArea->DrawScanPoints(hdc);
-
-	TextOut(hdc, 45, 45, TEXT("Michael Morrison"), 16);*/
 }
 
 void MainWindow::OnCreate(HWND hwnd)

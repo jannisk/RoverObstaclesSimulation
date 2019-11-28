@@ -9,7 +9,7 @@
 
 D2D1::ColorF::Enum colors[] = { D2D1::ColorF::Yellow, D2D1::ColorF::Salmon, D2D1::ColorF::LimeGreen };
 
-FieldArea::FieldArea(void): m_ptMouse(D2D1::Point2F()), m_ellipse(D2D1::Ellipse(D2D1::Point2F(), 0, 0))
+FieldArea::FieldArea(void): m_ptMouse(D2D1::Point2F()), m_trackedEllipse(D2D1::Ellipse(D2D1::Point2F(), 0, 0))
 {
 	// Initialize COM
 	CoInitialize(nullptr);
@@ -78,6 +78,7 @@ void FieldArea::Initialize()
 
 void FieldArea::DrawScanPoints()
 {
+
 	static const WCHAR sc_helloWorld[] = L"Hello, World!";
 
 	HRESULT hr = CreateGraphicsResources();
@@ -85,8 +86,6 @@ void FieldArea::DrawScanPoints()
 	if (SUCCEEDED(hr))
 	{
 		PAINTSTRUCT ps;
-		//BeginPaint(m_fieldhwnd, &ps);
-		//m_RenderTarget->BeginDraw();
 		//m_RenderTarget->SetTransform(D2D1::Matrix3x2F::Identity());
 		m_RenderTarget->Clear( D2D1::ColorF(D2D1::ColorF::OliveDrab));
 
@@ -121,16 +120,20 @@ void FieldArea::DrawScanPoints()
 			iCounter++;
 		}
       
-		D2D1_SIZE_F aSize;
+		/*D2D1_SIZE_F aSize;
 		aSize.width = (m_rect.right - m_rect.left) - 50;
 		aSize.height = (m_rect.bottom - m_rect.top) - 50;
+		m_RenderTarget->DrawRectangle(D2D1::RectF(m_rect.left + 50, m_rect.top + 50, m_rect.left + aSize.width, m_rect.top + aSize.height ), m_Brush);*/
 
-		m_RenderTarget->DrawRectangle(D2D1::RectF(m_rect.left + 50, m_rect.top + 50, m_rect.left + aSize.width, m_rect.top + aSize.height ), m_Brush);
-		//m_RenderTarget->EndDraw();
-		
-		m_RenderTarget->DrawEllipse(m_ellipse, m_Brush, 2);
+		m_RenderTarget->DrawEllipse(m_trackedEllipse, m_Brush, 2);
+		for(auto i = m_obstacles.begin(); i!= m_obstacles.end(); ++i)
+		{
+			
+			m_RenderTarget->DrawEllipse((*i).get(), m_Brush, 2);
+			
+		}
 
-		//EndPaint(m_fieldhwnd, &ps);
+
 	}
 }
 
@@ -159,7 +162,8 @@ void FieldArea::Create(HWND hParent)
 	RECT rect;
 	int width, height;
 	m_hParent = hParent;
-	/*if(GetWindowRect(hParent, &rect))
+	/* CREATE EXTRA WINDOW NOT USED 
+	if(GetWindowRect(hParent, &rect))
 	{
 		width = rect.right - rect.left;
 		height = rect.bottom - rect.top;
@@ -197,12 +201,6 @@ HRESULT FieldArea::CreateVehicle()
 			10,
 			&m_vehicle
 			);
-		/*RECT rc;
-
-		GetClientRect(m_texthwnd, &rc);
-		D2D1_SIZE_U size = D2D1::SizeU(rc.right, rc.bottom);
-		m_RenderTarget->CreateBitmap(size,D2D1::BitmapProperties(), &m_vehicle);*/
-
 	}
 	if (SUCCEEDED(hr))
 	{
@@ -220,10 +218,16 @@ HRESULT FieldArea::CreateGraphicsResources()
 		GetClientRect(m_hParent, &rc);
 		D2D1_SIZE_U size = D2D1::SizeU(rc.right, rc.bottom);
 
-		/*hr = m_factory->CreateHwndRenderTarget(
+		/*
+		This was used when field area class created an extra window see:FieldArea::Create
+		now there is no need for that
+
+		hr = m_factory->CreateHwndRenderTarget(
 			D2D1::RenderTargetProperties(),
 			D2D1::HwndRenderTargetProperties(m_hParent, size),
-			&m_RenderTarget);*/
+			&m_RenderTarget);
+			
+		*/
 		
 		m_WicFactory = CWICImagingFactory::GetInstance().GetFactory();
 
@@ -231,8 +235,9 @@ HRESULT FieldArea::CreateGraphicsResources()
 
 		if (SUCCEEDED(hr))
 		{
-			const D2D1_COLOR_F color = D2D1::ColorF(255.0f, 1.0f, 0);
+			const D2D1_COLOR_F color = D2D1::ColorF(colors[1]); //  D2D1::ColorF(255.0f, 1.0f, 0);
 			hr = m_RenderTarget->CreateSolidColorBrush(color, &m_Brush);
+			m_Brush->SetColor(color);
 		}
 	}
 	return hr;
@@ -365,8 +370,8 @@ HRESULT FieldArea::LoadResourceBitmap(
 void FieldArea::OnLButtonDown(int pixelX, int pixelY, DWORD flags)
 {
 	SetCapture(m_hParent);
-	m_ellipse.point = m_ptMouse = DPIScale::PixelsToDips(pixelX, pixelY);
-	m_ellipse.radiusX = m_ellipse.radiusY = 1.0f; 
+	m_trackedEllipse.point = m_ptMouse = DPIScale::PixelsToDips(pixelX, pixelY);
+	m_trackedEllipse.radiusX = m_trackedEllipse.radiusY = 1.0f; 
 	InvalidateRect(m_hParent, NULL, FALSE);
 }
 
@@ -381,7 +386,7 @@ void FieldArea::OnMouseMove(int pixelX, int pixelY, DWORD flags)
 		const float x1 = m_ptMouse.x + width;
 		const float y1 = m_ptMouse.y + height;
 
-		m_ellipse = D2D1::Ellipse(D2D1::Point2F(x1, y1), width, height);
+		m_trackedEllipse = D2D1::Ellipse(D2D1::Point2F(x1, y1), width, height);
 
 		InvalidateRect(m_hParent, NULL, FALSE);
 	}
@@ -389,7 +394,13 @@ void FieldArea::OnMouseMove(int pixelX, int pixelY, DWORD flags)
 
 void FieldArea::OnLButtonUp()
 {
+	InsertObstacle(m_trackedEllipse);
 	ReleaseCapture();
+}
+
+void FieldArea::InsertObstacle(D2D1_ELLIPSE ellipse)
+{
+	m_obstacles.push_back(shared_ptr<D2D1_ELLIPSE>(new D2D1_ELLIPSE(ellipse)));
 }
 
 
